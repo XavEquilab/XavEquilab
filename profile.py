@@ -245,6 +245,18 @@ def main():
               file=sys.stderr)
         sys.exit(1)
     print(json.dumps(stats, default=str))
+    # Garde-fou : commits et repos ne font que monter. Une baisse veut dire que le
+    # token ne voit plus les repos privés des orgs ; on échoue au lieu de publier
+    # des chiffres faux (supprimer stats.json pour accepter une vraie baisse).
+    stats_file = ROOT / "stats.json"
+    if stats_file.exists():
+        previous = json.loads(stats_file.read_text())
+        if stats["commits"] < previous["commits"] or stats["contributed"] < previous["contributed"]:
+            print(f"Stats en baisse (commits {previous['commits']} -> {stats['commits']}, repos "
+                  f"{previous['contributed']} -> {stats['contributed']}) : le token ne voit sans doute "
+                  "plus les repos privés. SVG inchangés.", file=sys.stderr)
+            sys.exit(1)
+    stats_file.write_text(json.dumps(stats, default=str, indent=2) + "\n")
     art = (ROOT / "ascii.txt").read_text(encoding="utf-8").rstrip("\n").split("\n")
     lines = build_lines(stats, date.today())
     for theme in THEMES:
