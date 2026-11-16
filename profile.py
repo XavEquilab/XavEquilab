@@ -233,6 +233,20 @@ def render(theme, art, lines):
     return "\n".join(out) + "\n"
 
 
+def token_diagnosis(token):
+    """Type et scopes du token, sans rien révéler (ni token, ni nom d'org)."""
+    kinds = {"ghp_": "classic", "github_pat_": "fine-grained", "gho_": "OAuth (gh CLI)"}
+    kind = next((v for k, v in kinds.items() if token.startswith(k)), "inconnu")
+    req = urllib.request.Request("https://api.github.com/user",
+                                 headers={"Authorization": f"bearer {token}", "User-Agent": "profile-card"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            scopes = resp.headers.get("X-OAuth-Scopes")
+    except Exception as exc:
+        scopes = f"? ({type(exc).__name__})"
+    return f"Diagnostic token : type={kind}, scopes={scopes if scopes is not None else 'aucun (fine-grained)'}"
+
+
 def main():
     token = os.environ.get("ACCESS_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
@@ -255,6 +269,7 @@ def main():
             print(f"Stats en baisse (commits {previous['commits']} -> {stats['commits']}, repos "
                   f"{previous['contributed']} -> {stats['contributed']}) : le token ne voit sans doute "
                   "plus les repos privés. SVG inchangés.", file=sys.stderr)
+            print(token_diagnosis(token), file=sys.stderr)
             sys.exit(1)
     stats_file.write_text(json.dumps(stats, default=str, indent=2) + "\n")
     art = (ROOT / "ascii.txt").read_text(encoding="utf-8").rstrip("\n").split("\n")
